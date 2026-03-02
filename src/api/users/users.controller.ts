@@ -1,14 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/guards/auth-guard';
+import { RolesGuard } from 'src/guards/role-guard';
 import { UsersService } from './users.service';
+import { Roles } from 'src/decorators/roles-decorator';
+import { RoleEnum } from 'src/constants/enums';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(RoleEnum.ADMIN)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
-
-  @Post()
-  create(@Body() createUserDto) {
-    return this.usersService.create(createUserDto);
-  }
+  constructor(private readonly usersService: UsersService) { }
 
   @Get()
   findAll() {

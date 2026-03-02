@@ -60,6 +60,8 @@ export class AuthService {
   private generateToken(user: User): { access_token: string } {
     const payload = {
       userId: user.id,
+      email: user.email,
+      is_active: user.is_active,
       role: user.role,
     };
 
