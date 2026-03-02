@@ -1,5 +1,7 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Queue } from 'bullmq';
 import { RoleEnum, TaskPriority, TaskStatus } from 'src/constants/enums';
 import { IUserProfileDto, PaginationDto } from 'src/dtos';
 import { Repository } from 'typeorm';
@@ -11,6 +13,8 @@ export class TaskService {
   constructor(
     @InjectRepository(Task)
     private readonly taskRepository: Repository<Task>,
+    @InjectQueue("tasks")
+    private readonly taskQueue: Queue,
   ) { }
 
   async create(dto: CreateTaskDto, user: IUserProfileDto) {
@@ -18,14 +22,10 @@ export class TaskService {
     const exists = await this.taskRepository.findOne({
       where: { idempotency_key: dto.idempotency_key },
     });
-
     if (exists) {
-      throw new ConflictException(
-        `Task with idempotency_key "${dto.idempotency_key}" already exists`,
-      );
+      throw new ConflictException(`Task with idempotency_key "${dto.idempotency_key}" already exists`);
     }
 
-    // 2. Task yaratish
     const task = this.taskRepository.create({
       ...dto,
       user_id: user.id,
@@ -34,12 +34,34 @@ export class TaskService {
       attempts: 0,
     });
 
-    return this.taskRepository.save(task);
+    await this.taskRepository.save(task);
+
+    // Priority: high=3, normal=2, low=1
+    const priorityMap = {
+      [TaskPriority.HIGH]: 1,
+      [TaskPriority.NORMAL]: 2,
+      [TaskPriority.LOW]: 3,
+    };
+
+    // Queue ga push
+    await this.taskQueue.add(
+      task.type,
+      { taskId: task.id },
+      {
+        jobId: task.idempotency_key, // duplicate oldini olish
+        priority: priorityMap[task.priority],
+        delay: task.scheduled_at
+          ? Math.max(0, new Date(task.scheduled_at).getTime() - Date.now())
+          : 0,
+      },
+    );
+
+    return task;
   }
 
   async findAll(query: PaginationDto, user: IUserProfileDto) {
     const { page, pageSize, type, status, scheduledDate } = query;
-
+    console.log(type)
     const userRole = user['role']
     const userId = user.id
     const qb = this.taskRepository
@@ -52,7 +74,7 @@ export class TaskService {
       qb.where("task.user_id = :userId", { userId });
     }
     if (type) {
-      qb.andWhere("task.type = :type", { type });
+      qb.andWhere("task.priority = :type", { type });
     }
 
     if (status) {
@@ -88,9 +110,7 @@ export class TaskService {
     const userRole = user['role']
     const userId = user.id
 
-    if (!task) {
-      throw new NotFoundException(`Task ${taskId} not found`);
-    }
+    if (!task) throw new NotFoundException(`Task ${taskId} not found`);
 
     if (userRole !== RoleEnum.ADMIN && task.user_id !== userId) {
       throw new ForbiddenException("You can only cancel your own tasks");
@@ -101,6 +121,10 @@ export class TaskService {
         `Only PENDING tasks can be cancelled. Current status: ${task.status}`,
       );
     }
+
+    // Queue dan olib tashlash
+    const job = await this.taskQueue.getJob(task.idempotency_key);
+    if (job) await job.remove();
 
     task.status = TaskStatus.CANCELLED;
     return this.taskRepository.save(task);

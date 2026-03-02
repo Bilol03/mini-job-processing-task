@@ -5,6 +5,8 @@ import { MockModule } from './mock/mock.module';
 import { AuthModule } from './api/auth/auth.module';
 import { UsersModule } from './api/users/users.module';
 import { TaskModule } from './api/task/task.module';
+import { BullModule } from '@nestjs/bullmq';
+import { QueueModule } from './queue.module';
 
 @Module({
   imports: [
@@ -29,6 +31,7 @@ import { TaskModule } from './api/task/task.module';
         migrationsRun: false,
       }),
     }),
+    QueueModule,
 
     AuthModule,
 
