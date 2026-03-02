@@ -1,10 +1,9 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RoleEnum, TaskPriority, TaskStatus } from 'src/constants/enums';
 import { IUserProfileDto, PaginationDto } from 'src/dtos';
 import { Repository } from 'typeorm';
 import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
 import { Task } from './entities/task.entity';
 
 @Injectable()
@@ -82,15 +81,28 @@ export class TaskService {
     };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} task`;
-  }
 
-  update(id: number, updateTaskDto: UpdateTaskDto) {
-    return `This action updates a #${id} task`;
-  }
+  // tasks.service.ts
+  async cancelTask(taskId: string, user: IUserProfileDto): Promise<Task> {
+    const task = await this.taskRepository.findOne({ where: { id: taskId } });
+    const userRole = user['role']
+    const userId = user.id
 
-  remove(id: number) {
-    return `This action removes a #${id} task`;
+    if (!task) {
+      throw new NotFoundException(`Task ${taskId} not found`);
+    }
+
+    if (userRole !== RoleEnum.ADMIN && task.user_id !== userId) {
+      throw new ForbiddenException("You can only cancel your own tasks");
+    }
+
+    if (task.status !== TaskStatus.PENDING) {
+      throw new BadRequestException(
+        `Only PENDING tasks can be cancelled. Current status: ${task.status}`,
+      );
+    }
+
+    task.status = TaskStatus.CANCELLED;
+    return this.taskRepository.save(task);
   }
 }

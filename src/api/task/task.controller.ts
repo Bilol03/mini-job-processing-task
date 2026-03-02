@@ -25,18 +25,8 @@ export class TaskController {
     return this.taskService.findAll(query, user);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.taskService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTaskDto: UpdateTaskDto) {
-    return this.taskService.update(+id, updateTaskDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.taskService.remove(+id);
-  }
+ @Post('/:id/cancel')
+ cancelTask(@Param('id')id: string, @CurrentUser() user: IUserProfileDto) {
+  return this.taskService.cancelTask(id, user)
+ }
 }
