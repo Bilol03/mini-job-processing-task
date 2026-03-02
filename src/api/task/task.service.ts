@@ -7,6 +7,8 @@ import { IUserProfileDto, PaginationDto } from 'src/dtos';
 import { Repository } from 'typeorm';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { Task } from './entities/task.entity';
+import { rateLimits } from 'src/constants/constantas';
+
 
 @Injectable()
 export class TaskService {
@@ -42,6 +44,7 @@ export class TaskService {
       [TaskPriority.NORMAL]: 2,
       [TaskPriority.LOW]: 3,
     };
+    const rateLimit = rateLimits[dto.type];
 
     // Queue ga push
     await this.taskQueue.add(
@@ -55,7 +58,7 @@ export class TaskService {
           : 0,
       },
     );
-
+    console.log("✅ Task pushed to queue:", task.id); // ← shu
     return task;
   }
 
@@ -129,4 +132,6 @@ export class TaskService {
     task.status = TaskStatus.CANCELLED;
     return this.taskRepository.save(task);
   }
+
+
 }

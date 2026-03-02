@@ -31,7 +31,12 @@ import { QueueModule } from './queue.module';
         migrationsRun: false,
       }),
     }),
-    QueueModule,
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT || "6379"),
+      },
+    }),
 
     AuthModule,
 
